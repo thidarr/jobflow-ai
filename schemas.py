@@ -16,3 +16,10 @@ class MatchRequest(BaseModel):
 class CandidateProfile(BaseModel):
     name: str
     skills: list[str]
+
+class AIMatchResult(BaseModel):
+    match_score: int
+    matched_skills: list[str]
+    missing_skills: list[str]
+    strengths: list[str]
+    explanation: str

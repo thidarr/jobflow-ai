@@ -3,6 +3,7 @@ from database import get_connection
 from schemas import JobCreate, JobUpdate
 from routers.candidate import get_candidate_profile
 from services.matching import calculate_match
+from services.ai_matching import analyze_job_match
 
 router = APIRouter(
     prefix="/jobs",
@@ -142,4 +143,36 @@ def match_saved_job(job_id: int):
         "job": job,
         "candidate": candidate_profile,
         "match": result
+    }
+
+@router.post("/{job_id}/ai-match")
+def ai_match_job(job_id: int):
+    candidate = get_candidate_profile()
+
+    if candidate is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Candidate profile not found"
+        )
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT * FROM jobs WHERE id = %s;",
+                (job_id,)
+            )
+            job = cursor.fetchone()
+
+    if job is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Job not found"
+        )
+
+    result = analyze_job_match(candidate, job)
+
+    return {
+        "job": job,
+        "candidate": candidate,
+        "ai_match": result
     }
