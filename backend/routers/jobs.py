@@ -61,16 +61,22 @@ def get_job(job_id: int):
 
 @router.patch("/{job_id}")
 def update_job(job_id: int, update: JobUpdate):
+    update_data = update.model_dump(exclude_unset=True)
+    set_clause = ", ".join(
+        [f"{key} = %s" for key in update_data.keys()]
+        )
+    values = list(update_data.values())
+    values.append(job_id)
     with get_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
-                """
+                f"""
                 UPDATE jobs
-                SET status = %s
+                SET {set_clause}
                 WHERE id = %s
                 RETURNING *;
                 """,
-                (update.status, job_id)
+                values
             )
 
             job = cursor.fetchone()
@@ -168,11 +174,95 @@ def ai_match_job(job_id: int):
             status_code=404,
             detail="Job not found"
         )
+    try:
+        result = analyze_job_match(candidate, job)
+    except Exception as e:
+        print(e)
 
-    result = analyze_job_match(candidate, job)
+        raise HTTPException(
+            status_code=502,
+            detail="Ai matching service is temporarily unavailable"
+        )
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO ai_match_results (
+                    job_id,
+                    candidate_id,
+                    match_score,
+                    matched_skills,
+                    missing_skills,
+                    strengths,
+                    explanation
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING *;
+                """,
+                (
+                    job["id"],
+                    candidate["id"],
+                    result.match_score,
+                    result.matched_skills,
+                    result.missing_skills,
+                    result.strengths,
+                    result.explanation,
+                ),
+            )
+
+            saved_result = cursor.fetchone()
 
     return {
         "job": job,
         "candidate": candidate,
-        "ai_match": result
+        "ai_match": saved_result
+    }
+
+@router.get("/{job_id}/ai_matches")
+def get_ai_matches(job_id: int):
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT * FROM jobs WHERE id = %s;",
+                (job_id,)
+            )
+
+            job = cursor.fetchone()
+
+            if job is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Job not found"
+                )
+
+            cursor.execute(
+                """
+                SELECT * FROM ai_match_results
+                WHERE job_id = %s
+                ORDER BY id DESC;
+                """,
+                (job_id,)
+            )
+
+            results = cursor.fetchall()
+
+    return {
+        "ai_matches": results
+    }
+
+@router.get("/follow-ups/due")
+def get_due_follow_ups():
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT * from jobs
+                WHERE follow_up_date <= CURRENT_DATE
+                ORDER BY follow_up_date ASC;
+                """,
+            )
+            dates = cursor.fetchall()
+    return{
+        "follow_up_dates": dates
     }

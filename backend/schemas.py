@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from datetime import date
 
 
 class JobCreate(BaseModel):
@@ -7,7 +8,9 @@ class JobCreate(BaseModel):
     description: str | None = None
 
 class JobUpdate(BaseModel):
-    status: str
+    status: str | None = None
+    applied_date: date | None = None
+    follow_up_date: date | None = None
 
 class MatchRequest(BaseModel):
     skills: list[str]
