@@ -13,16 +13,40 @@ router = APIRouter(
 def save_candidate(profile: CandidateProfile):
     with get_connection() as conn:
         with conn.cursor() as cursor:
-            cursor.execute("DELETE FROM candidate_profiles;")
-
             cursor.execute(
                 """
-                INSERT INTO candidate_profiles (name, skills)
-                VALUES (%s, %s)
-                RETURNING *;
-                """,
-                (profile.name, profile.skills)
+                SELECT id
+                FROM candidate_profiles
+                ORDER BY id DESC
+                LIMIT 1;
+                """
             )
+
+            existing_candidate = cursor.fetchone()
+
+            if existing_candidate:
+                cursor.execute(
+                    """
+                    UPDATE candidate_profiles
+                    SET name = %s, skills = %s
+                    WHERE id = %s
+                    RETURNING *;
+                    """,
+                    (
+                        profile.name,
+                        profile.skills,
+                        existing_candidate["id"]
+                    )
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO candidate_profiles (name, skills)
+                    VALUES (%s, %s)
+                    RETURNING *;
+                    """,
+                    (profile.name, profile.skills)
+                )
 
             candidate = cursor.fetchone()
 

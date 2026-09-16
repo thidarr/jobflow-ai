@@ -1,5 +1,7 @@
 "use client";
+
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -18,7 +20,7 @@ type AIMatchResult = {
     missing_skills: string[];
     strengths: string[];
     explanation: string;
-}
+};
 
 export default function JobCard({
     id,
@@ -28,12 +30,15 @@ export default function JobCard({
     applied_date,
     follow_up_date,
 }: JobCardProps) {
-
     const [currentStatus, setCurrentStatus] = useState(status);
-    const [currentFollowUpDate, setCurrentFollowUpDate] = useState(follow_up_date);
+    const [currentFollowUpDate, setCurrentFollowUpDate] =
+        useState(follow_up_date);
+
     const [aiResult, setAiResult] = useState<AIMatchResult | null>(null);
     const [aiError, setAiError] = useState("");
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+    const router = useRouter();
 
     const followUpDate = currentFollowUpDate
         ? new Date(currentFollowUpDate)
@@ -60,17 +65,17 @@ export default function JobCard({
     }
 
     let followUpStyle = "";
+
     if (followUpStatus === "Overdue") {
         followUpStyle = "bg-red-100 text-red-700";
-    }
-    else if (followUpStatus === "Due today") {
+    } else if (followUpStatus === "Due today") {
         followUpStyle = "bg-orange-100 text-orange-700";
-    }
-    else if (followUpStatus === "Upcoming") {
+    } else if (followUpStatus === "Upcoming") {
         followUpStyle = "bg-green-100 text-green-700";
     }
 
     let statusStyle = "bg-gray-100 text-gray-700";
+
     if (currentStatus === "Applied") {
         statusStyle = "bg-blue-100 text-blue-700";
     } else if (currentStatus === "Interview") {
@@ -91,6 +96,7 @@ export default function JobCard({
                 status: newStatus,
             }),
         });
+
         if (response.ok) {
             setCurrentStatus(newStatus);
         }
@@ -132,20 +138,36 @@ export default function JobCard({
             }
 
             const data = await response.json();
-            setAiResult(data);
-
+            setAiResult(data.ai_match);
         } catch {
             setAiError(
                 "Could not connect to the server. Please try again."
             );
-
         } finally {
             setIsAnalyzing(false);
         }
     }
 
+    async function deleteJob() {
+        const confirmed = window.confirm(
+            `Delete "${title}" at ${company}? This action cannot be undone.`
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        const response = await fetch(`${API_URL}/jobs/${id}`, {
+            method: "DELETE",
+        });
+
+        if (response.ok) {
+            router.refresh();
+        }
+    }
+
     return (
-        <div className="rounded-xl border border-gray-200 bg-white text-center p-5 shadow-sm">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 text-center shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900">
                 {title}
             </h2>
@@ -154,21 +176,21 @@ export default function JobCard({
                 {company}
             </p>
 
-            <div className="mt-3 mb-3">
+            <div className="mb-3 mt-3">
                 <select
                     value={currentStatus}
                     onChange={(event) => {
                         updateStatus(event.target.value);
                     }}
                     className={`
-                    cursor-pointer rounded-full border-0
-                    px-3 py-1.5
-                    text-xs font-medium
-                    outline-none
-                    transition-all duration-200
-                    hover:shadow-sm
-                    ${statusStyle}
-                `}
+                        cursor-pointer rounded-full border-0
+                        px-3 py-1.5
+                        text-xs font-medium
+                        outline-none
+                        transition-all duration-200
+                        hover:shadow-sm
+                        ${statusStyle}
+                    `}
                 >
                     <option value="Saved">Saved</option>
                     <option value="Applied">Applied</option>
@@ -177,14 +199,13 @@ export default function JobCard({
                     <option value="Rejected">Rejected</option>
                 </select>
             </div>
-            <div>
-                {applied_date !== null && (
-                    <p className="mt-1 text-sm text-gray-600">
-                        Applied: {applied_date}
-                    </p>
-                )
-                }
-            </div>
+
+            {applied_date !== null && (
+                <p className="mt-1 text-sm text-gray-600">
+                    Applied: {applied_date}
+                </p>
+            )}
+
             <div className="mt-3 flex items-center justify-center gap-2">
                 <input
                     type="date"
@@ -192,57 +213,75 @@ export default function JobCard({
                     onChange={(event) => {
                         updateFollowUpDate(event.target.value);
                     }}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    className="
+                        rounded-lg border border-gray-300
+                        bg-white px-3 py-2 text-sm
+                        outline-none transition
+                        focus:border-gray-500 focus:ring-2 focus:ring-gray-100
+                    "
                 />
 
                 {currentFollowUpDate && (
                     <button
                         type="button"
                         onClick={() => updateFollowUpDate("")}
-                        className="text-sm text-gray-500 hover:text-red-600"
+                        className="
+                            text-sm text-gray-500
+                            transition-colors duration-200
+                            hover:text-red-600
+                        "
                     >
                         Clear
                     </button>
                 )}
             </div>
-            <div>
-                {currentFollowUpDate !== null && (
-                    <div className="mt-2">
-                        <p className="mt-1 text-sm text-gray-600">
-                            Follow up: {currentFollowUpDate}
-                        </p>
-                        <span className={`mt-2 inline-block rounded-full px-2 py-1 text-xs font-medium ${followUpStyle}`}>
-                            {followUpStatus}
-                        </span>
 
-                    </div>
-                )
-                }
-            </div>
+            {currentFollowUpDate !== null && (
+                <div className="mt-2">
+                    <p className="mt-1 text-sm text-gray-600">
+                        Follow up: {currentFollowUpDate}
+                    </p>
+
+                    <span
+                        className={`
+                            mt-2 inline-block rounded-full
+                            px-2 py-1 text-xs font-medium
+                            ${followUpStyle}
+                        `}
+                    >
+                        {followUpStatus}
+                    </span>
+                </div>
+            )}
+
             <button
                 type="button"
                 onClick={analyzeMatch}
                 disabled={isAnalyzing}
                 className="
-                 mt-4 inline-flex items-center gap-2
-                 rounded-lg bg-gray-900 px-4 py-2
-                 text-sm font-medium text-white
-                 shadow-sm
-                 transition-all duration-200
-                 hover:-translate-y-0.5 hover:bg-gray-800 hover:shadow-md
-                 active:translate-y-0
-                 disabled:cursor-not-allowed disabled:opacity-50
-                 disabled:hover:translate-y-0
+                    mt-4 inline-flex items-center gap-2
+                    rounded-lg bg-gray-900 px-4 py-2
+                    text-sm font-medium text-white
+                    shadow-sm
+                    transition-all duration-200
+                    hover:-translate-y-0.5
+                    hover:bg-gray-800 hover:shadow-md
+                    active:translate-y-0
+                    disabled:cursor-not-allowed
+                    disabled:opacity-50
+                    disabled:hover:translate-y-0
                 "
             >
                 <span>{isAnalyzing ? "◌" : "✦"}</span>
                 {isAnalyzing ? "Analyzing..." : "Analyze Match"}
             </button>
+
             {aiError && (
                 <p className="mt-2 text-sm text-red-600">
                     {aiError}
                 </p>
             )}
+
             {aiResult && (
                 <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 text-left">
                     <p className="text-sm font-medium text-gray-700">
@@ -259,7 +298,14 @@ export default function JobCard({
 
                     <div className="mt-2 flex flex-wrap gap-2">
                         {aiResult.matched_skills.map((skill) => (
-                            <span key={skill} className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                            <span
+                                key={skill}
+                                className="
+                                    rounded-full bg-green-100
+                                    px-2 py-1 text-xs
+                                    font-medium text-green-700
+                                "
+                            >
                                 {skill}
                             </span>
                         ))}
@@ -271,7 +317,14 @@ export default function JobCard({
 
                     <div className="mt-2 flex flex-wrap gap-2">
                         {aiResult.missing_skills.map((skill) => (
-                            <span key={skill} className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">
+                            <span
+                                key={skill}
+                                className="
+                                    rounded-full bg-red-100
+                                    px-2 py-1 text-xs
+                                    font-medium text-red-700
+                                "
+                            >
                                 {skill}
                             </span>
                         ))}
@@ -283,7 +336,10 @@ export default function JobCard({
 
                     <ul className="mt-2 list-disc space-y-1 pl-5 text-left">
                         {aiResult.strengths.map((strength) => (
-                            <li key={strength} className="text-xs text-gray-600">
+                            <li
+                                key={strength}
+                                className="text-xs text-gray-600"
+                            >
                                 {strength}
                             </li>
                         ))}
@@ -296,7 +352,36 @@ export default function JobCard({
                     <p className="mt-2 text-sm leading-relaxed text-gray-600">
                         {aiResult.explanation}
                     </p>
+                </div>
+            )}
 
+            {currentStatus === "Rejected" && (
+                <div className="mt-5 border-t border-gray-100 pt-4">
+                    <p className="mb-3 text-xs text-gray-400">
+                        No longer pursuing this application?
+                    </p>
+
+                    <button
+                        type="button"
+                        onClick={deleteJob}
+                        className="
+                            inline-flex items-center gap-2
+                            rounded-lg border border-red-200
+                            bg-red-50 px-4 py-2
+                            text-sm font-medium text-red-600
+                            shadow-sm
+                            transition-all duration-200
+                            hover:-translate-y-0.5
+                            hover:border-red-300
+                            hover:bg-red-100
+                            hover:shadow-md
+                            active:translate-y-0
+                            active:shadow-sm
+                        "
+                    >
+                        <span aria-hidden="true">×</span>
+                        Delete Job
+                    </button>
                 </div>
             )}
         </div>
